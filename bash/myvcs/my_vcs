@@ -1,0 +1,92 @@
+#!/bin/sh
+
+FNAME=$2
+ARG=$3
+
+init_file() {
+  if [ -f ./$FNAME ]; then
+	if [ -f ./.file/$FNAME ]; then
+	    echo "File named $FNAME already exists, exiting"
+	else
+	    echo "Initializing file $FNAME"
+	    cp ./$FNAME ./.file/$FNAME
+	    echo 0 > ./.file/$FNAME"_COUNT"
+	    diff -u ./.file/$FNAME ./$FNAME > ./.file/$FNAME"_0"
+	fi
+  else
+	echo "No file named $FNAME in working dir"
+  fi
+}
+
+commit_file() {
+  if [ -f ./.file/$FNAME ]; then
+	export COUNT=`cat ./.file/$FNAME"_COUNT"`
+	cp ./.file/$FNAME ./.file/$FNAME"_t"
+	patch ./.file/$FNAME"_t" ./.file/$FNAME"_"$COUNT
+
+	if [ "`diff ./.file/$FNAME"_t" ./$FNAME`" ]; then
+		COUNT=`expr $COUNT + 1`
+		echo $COUNT > ./.file/$FNAME"_COUNT"
+		diff -u ./.file/$FNAME ./$FNAME > ./.file/$FNAME"_"$COUNT
+	else
+		echo "nothing to commit: no changes"
+	fi
+
+	rm ./.file/$FNAME"_t"
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+update_file() {
+  if [ -f ./.file/$FNAME"_"$ARG ]; then
+	cp ./.file/$FNAME ./$FNAME
+	patch ./$FNAME ./.file/$FNAME"_"$ARG
+  else
+	echo "No version $ARG of file named $FNAME"
+  fi
+}
+
+status_file() {
+  if [ -f ./.file/$FNAME ]; then
+	if [ -z "`diff -u ./.file/$FNAME ./$FNAME`" ]; then
+		echo "no changes"
+	else
+		echo "changed"
+	fi
+  else
+	echo "It's a completely new file"
+  fi
+
+}
+
+diff_file() {
+  if [ -f ./.file/$FNAME ]; then
+	diff -u ./.file/$FNAME ./$FNAME
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+
+
+case "$1" in
+'diff_file')
+  diff_file
+  ;;
+'commit_file')
+  commit_file
+  ;;
+'init_file')
+  init_file
+  ;;
+'update_file')
+  update_file
+  ;;
+'status_file')
+  status_file
+  ;;
+*)
+  echo "No action"
+esac
+
