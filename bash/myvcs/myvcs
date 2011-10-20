@@ -1,0 +1,96 @@
+#!/bin/sh
+
+FNAME=$2
+ARG=$3
+
+init() {
+  if [ -f ./$FNAME ]; then
+	if [ -d ./"."$FNAME/ ]; then
+	    echo "File named $FNAME is already initialized, exiting"
+	    if [ ! -f ./"."$FNAME/$FNAME ]; then
+		echo "But there's a problem with it. Delete directory .$FNAME and initialize this file again"
+	    fi
+	else
+	    mkdir ./"."$FNAME
+	    echo "Initializing file $FNAME"
+	    cp ./$FNAME ./"."$FNAME/$FNAME
+	    echo 0 > ./"."$FNAME/$FNAME"_COUNT"
+	    diff -u ./"."$FNAME/$FNAME ./$FNAME > ./"."$FNAME/$FNAME"_0"
+	fi
+  else
+	echo "No file named $FNAME in working dir"
+  fi
+}
+
+commit() {
+  if [ -f ./"."$FNAME/$FNAME ]; then
+	export COUNT=`cat ./"."$FNAME/$FNAME"_COUNT"`
+	cp ./"."$FNAME/$FNAME ./"."$FNAME/$FNAME"_t"
+	patch ./"."$FNAME/$FNAME"_t" ./"."$FNAME/$FNAME"_"$COUNT
+
+	if [ "`diff ./"."$FNAME/$FNAME"_t" ./$FNAME`" ]; then
+		COUNT=`expr $COUNT + 1`
+		echo $COUNT > ./"."$FNAME/$FNAME"_COUNT"
+		diff -u ./"."$FNAME/$FNAME ./$FNAME > ./"."$FNAME/$FNAME"_"$COUNT
+	else
+		echo "nothing to commit: no changes"
+	fi
+
+	rm ./"."$FNAME/$FNAME"_t"
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+update() {
+  if [ -f ./"."$FNAME/$FNAME"_"$ARG ]; then
+	cp ./"."$FNAME/$FNAME ./$FNAME
+	patch ./$FNAME ./"."$FNAME/$FNAME"_"$ARG
+  else
+	echo "No version $ARG of file named $FNAME"
+  fi
+}
+
+status() {
+  if [ -f ./"."$FNAME/$FNAME ]; then
+	if [ -z "`diff -u ./"."$FNAME/$FNAME ./$FNAME`" ]; then
+		echo "no changes"
+	else
+		echo "changed"
+	fi
+  else
+	echo "It's a completely new file"
+  fi
+
+}
+
+_diff() {
+  if [ -f ./"."$FNAME/$FNAME ]; then
+	diff -u ./"."$FNAME/$FNAME ./$FNAME
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+
+
+case "$1" in
+'diff')
+  _diff
+  ;;
+'commit')
+  commit
+  ;;
+'init')
+  init
+  ;;
+'update')
+  update
+  ;;
+'status')
+  status
+  ;;
+*)
+  echo "No action"
+esac
+
