@@ -1,0 +1,138 @@
+#!/bin/sh
+
+QQEDIR=`cat ~/.fetch4merc | grep QQEDIR | awk '{ split ($0, arr, "="); print arr[2]; }'`
+GETELEMFUNC=`cat ~/.fetch4merc | grep GETELEMFUNC | awk '{ split ($0, arr, "="); print arr[2]; }'`
+
+FIRSTARG=0
+
+if [ $1 = "-w" ]; then
+	QQEDIR=$2
+	FIRSTARG=2
+	if [ $3 = "-r" ]; then
+		REFERRER=$4
+		FIRSTARG=4
+	fi
+elif [ $1 = "-r" ]; then
+	REFERRER=$2
+	FIRSTARG=2
+	if [ $3 = "-w" ]; then
+		QQEDIR=$4
+		FIRSTARG=4
+	fi
+fi
+
+if [ -z $QQEDIR ]; then
+	QQEDIR="~/.fetch4me"
+fi 	
+
+if [ -z $GETELEMFUNC ]; then
+	GETELEMFUNC="wget"
+fi
+
+ARGS=("$@")
+for (( i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
+    echo ${ARGS[${i}]}
+done 
+
+##
+## TODO: check, if QQEDIR and GETELEMFUNC exist, and if REFERRER is correct URL. If not - exit 1.
+##
+
+##
+## TODO: search for "fetch4me.lock" in QQEDIR, if there is one - 
+## look at PID and find out, is the daemon running or has it crashed
+## If process is running - add new files to QQEDIR and exit 0. If not - try to 
+## restart unfinished downloads, generate new lock file. Daemonize.
+## If there's new lock file - generate new queue, daemonize.
+##
+
+##
+## TODO: process all files from QQEDIR
+##
+
+##
+## TODO: 'df -h' to find out, if there's enough space on disk. If not - exit 1.
+##
+
+##
+## Below is some shit for copy-pasting useful code)
+##
+
+aaa=`ps -e | grep fetch4me | grep -v "grep" | awk '{print $1;}'`
+echo $aaa
+if [ -z "$aaa" ]; then
+	echo "daemon is already running"
+else
+	trap "echo 'fuck off'" SIGHUP
+fi
+
+init() {
+  if [ -f ./$FNAME ]; then
+	if [ -d ./"."$FNAME/ ]; then
+	    echo "File named $FNAME is already initialized, exiting"
+	    if [ ! -f ./"."$FNAME/$FNAME ]; then
+		echo "But there's a problem with it. Delete directory .$FNAME and initialize this file again"
+	    fi
+	else
+	    mkdir ./"."$FNAME
+	    echo "Initializing file $FNAME"
+	    cp ./$FNAME ./"."$FNAME/$FNAME
+	    echo 0 > ./"."$FNAME/$FNAME"_COUNT"
+	    diff -u ./"."$FNAME/$FNAME ./$FNAME > ./"."$FNAME/$FNAME"_0"
+	fi
+  else
+	echo "No file named $FNAME in working dir"
+  fi
+}
+
+commit() {
+  if [ -f ./"."$FNAME/$FNAME ]; then
+	export COUNT=`cat ./"."$FNAME/$FNAME"_COUNT"`
+	cp ./"."$FNAME/$FNAME ./"."$FNAME/$FNAME"_t"
+	patch ./"."$FNAME/$FNAME"_t" ./"."$FNAME/$FNAME"_"$COUNT
+
+	if [ "`diff ./"."$FNAME/$FNAME"_t" ./$FNAME`" ]; then
+		COUNT=`expr $COUNT + 1`
+		echo $COUNT > ./"."$FNAME/$FNAME"_COUNT"
+		diff -u ./"."$FNAME/$FNAME ./$FNAME > ./"."$FNAME/$FNAME"_"$COUNT
+	else
+		echo "nothing to commit: no changes"
+	fi
+
+	rm ./"."$FNAME/$FNAME"_t"
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+update() {
+  if [ -f ./"."$FNAME/$FNAME"_"$ARG ]; then
+	cp ./"."$FNAME/$FNAME ./$FNAME
+	patch ./$FNAME ./"."$FNAME/$FNAME"_"$ARG
+  else
+	echo "No version $ARG of file named $FNAME"
+  fi
+}
+
+status() {
+  if [ -f ./"."$FNAME/$FNAME ]; then
+	if [ -z "`diff -u ./"."$FNAME/$FNAME ./$FNAME`" ]; then
+		echo "no changes"
+	else
+		echo "changed"
+	fi
+  else
+	echo "It's a completely new file"
+  fi
+
+}
+
+_diff() {
+  if [ -f ./"."$FNAME/$FNAME ]; then
+	diff -u ./"."$FNAME/$FNAME ./$FNAME
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+
