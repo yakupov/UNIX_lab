@@ -1,7 +1,51 @@
 #!/bin/sh
 
-QQEDIR=`cat ~/.fetch4merc | grep QQEDIR | awk '{ split ($0, arr, "="); print arr[2]; }'`
+function processQueue {
+	if [ -f $LOCKFILE ]; then
+		if [ `cat $LOCKFILE1` != $$ ]; then
+			; 
+		fi
+	fi
+	rm LOCKFILE
+	echo $$ > $LOCKFILE
+}
+
+function processLink {
+	DOWNLOADPATH=~/Downloads/fetched4you
+	echo $DOWNLOADPATH
+	if [ ! -d $DOWNLOADPATH ]; then
+		mkdir $DOWNLOADPATH
+		echo "Created $DOWNLOADPATH"
+	fi
+
+	DOWNLOADPATH=$DOWNLOADPATH"/"$REFERRER
+	if [ ! -d $DOWNLOADPATH ]; then
+		mkdir $DOWNLOADPATH
+		echo "Created $DOWNLOADPATH"
+	fi
+
+	DOWNLOADPATH=$DOWNLOADPATH"/"$URL
+	if [ ! -d $DOWNLOADPATH ]; then
+		mkdir $DOWNLOADPATH
+		echo "Created $DOWNLOADPATH"
+	fi
+
+	wget blah blah ###########TODO############
+	if [ $? -ne 0 ]; then
+		echo 1>&2 "fuck"
+		##process error
+	fi
+	
+}
+
 GETELEMFUNC=`cat ~/.fetch4merc | grep GETELEMFUNC | awk '{ split ($0, arr, "="); print arr[2]; }'`
+QQEDIR=`cat ~/.fetch4merc | grep QQEDIR | awk '{ split ($0, arr, "="); print arr[2]; }'`
+
+#convert relative path to abs. path
+TMP=`echo $QQEDIR | sed 's/~//g'`
+if [ ! "$TMP" = "$QQEDIR" ]; then
+	QQEDIR=$HOME$TMP
+fi
 
 FIRSTARG=0
 
@@ -22,17 +66,42 @@ elif [ $1 = "-r" ]; then
 fi
 
 if [ -z $QQEDIR ]; then
-	QQEDIR="~/.fetch4me"
-fi 	
+	QQEDIR=~/.fetch4me
+fi
 
 if [ -z $GETELEMFUNC ]; then
 	GETELEMFUNC="wget"
 fi
 
+echo $QQEDIR
+echo $GETELEMFUNC
+
+if [ ! -d $QQEDIR ]; then
+	echo 'working dir does not exist'
+	exit 1
+fi
+
+if [ ! -z "`$GETELEMFUNC 2>&1 | grep "command not found"`" ]; then
+	echo 'elemfunc does not exist'
+	exit 1
+fi
+
 ARGS=("$@")
-for (( i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
-    echo ${ARGS[${i}]}
+for ((i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
+	if [ ${ARGS[${i}]} = "-r" ]; then
+		i=`expr $i + 1`
+		REFERRER=${ARGS[$i]}
+		echo $REFERRER" is the new referrer"
+	else
+		URL=${ARGS[$i]}
+		echo $URL
+#		processLink
+	fi
 done 
+
+LOCKFILE=QQEDIR/.fetch4me_lock
+
+#processQueue
 
 ##
 ## TODO: check, if QQEDIR and GETELEMFUNC exist, and if REFERRER is correct URL. If not - exit 1.
@@ -58,81 +127,12 @@ done
 ## Below is some shit for copy-pasting useful code)
 ##
 
-aaa=`ps -e | grep fetch4me | grep -v "grep" | awk '{print $1;}'`
+aaa=`ps -e | grep fetch4me | grep -v "grep" | awk '{print $4;}'`
 echo $aaa
 if [ -z "$aaa" ]; then
 	echo "daemon is already running"
 else
 	trap "echo 'fuck off'" SIGHUP
 fi
-
-init() {
-  if [ -f ./$FNAME ]; then
-	if [ -d ./"."$FNAME/ ]; then
-	    echo "File named $FNAME is already initialized, exiting"
-	    if [ ! -f ./"."$FNAME/$FNAME ]; then
-		echo "But there's a problem with it. Delete directory .$FNAME and initialize this file again"
-	    fi
-	else
-	    mkdir ./"."$FNAME
-	    echo "Initializing file $FNAME"
-	    cp ./$FNAME ./"."$FNAME/$FNAME
-	    echo 0 > ./"."$FNAME/$FNAME"_COUNT"
-	    diff -u ./"."$FNAME/$FNAME ./$FNAME > ./"."$FNAME/$FNAME"_0"
-	fi
-  else
-	echo "No file named $FNAME in working dir"
-  fi
-}
-
-commit() {
-  if [ -f ./"."$FNAME/$FNAME ]; then
-	export COUNT=`cat ./"."$FNAME/$FNAME"_COUNT"`
-	cp ./"."$FNAME/$FNAME ./"."$FNAME/$FNAME"_t"
-	patch ./"."$FNAME/$FNAME"_t" ./"."$FNAME/$FNAME"_"$COUNT
-
-	if [ "`diff ./"."$FNAME/$FNAME"_t" ./$FNAME`" ]; then
-		COUNT=`expr $COUNT + 1`
-		echo $COUNT > ./"."$FNAME/$FNAME"_COUNT"
-		diff -u ./"."$FNAME/$FNAME ./$FNAME > ./"."$FNAME/$FNAME"_"$COUNT
-	else
-		echo "nothing to commit: no changes"
-	fi
-
-	rm ./"."$FNAME/$FNAME"_t"
-  else
-	echo "No file named $FNAME was initialized"
-  fi
-}
-
-update() {
-  if [ -f ./"."$FNAME/$FNAME"_"$ARG ]; then
-	cp ./"."$FNAME/$FNAME ./$FNAME
-	patch ./$FNAME ./"."$FNAME/$FNAME"_"$ARG
-  else
-	echo "No version $ARG of file named $FNAME"
-  fi
-}
-
-status() {
-  if [ -f ./"."$FNAME/$FNAME ]; then
-	if [ -z "`diff -u ./"."$FNAME/$FNAME ./$FNAME`" ]; then
-		echo "no changes"
-	else
-		echo "changed"
-	fi
-  else
-	echo "It's a completely new file"
-  fi
-
-}
-
-_diff() {
-  if [ -f ./"."$FNAME/$FNAME ]; then
-	diff -u ./"."$FNAME/$FNAME ./$FNAME
-  else
-	echo "No file named $FNAME was initialized"
-  fi
-}
 
 
