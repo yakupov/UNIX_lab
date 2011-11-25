@@ -1,65 +1,68 @@
 #!/bin/bash -e
 
 function downloadFile {
-	echo $CURRFILE
 	DOWNLOADPATH=`cat $CURRFILE | grep DOWNLOADPATH | awk '{ split ($0, arr, "="); print arr[2]; }'`
+	DOWNLOADDIR=`cat $CURRFILE | grep DOWNLOADDIR | awk '{ split ($0, arr, "="); print arr[2]; }'`
 	URL=`cat $CURRFILE | grep URL | awk '{ split ($0, arr, "="); print arr[2]; }'`
 	REFERRER=`cat $CURRFILE | grep REFERRER | awk '{ split ($0, arr, "="); print arr[2]; }'`
 	
-	#TODO: check disk space
+	TMP=(`df $DOWNLOADDIR | awk '{print $4}'`)
+	AVAILABLE=${TMP[1]}
+	NEEDED=`$GETELEMFUNC --spider $URL 2>&1 | grep Length | awk '{print $2;}'`
 
-	$GETELEMFUNC -c $CURRFILE -O $DOWNLOADPATH -r $REFERRER $URL #continue, if possible
+	if [ ! -z "`echo $NEEDED | egrep '^([0-9]*|\d*\.\d{1}?\d*)$'`" ]; then
+		if [ $NEEDED -gt $AVAILABLE ]; then
+			echo "not enough space on disk"
+			exit 1
+		fi
+	fi
+
+	echo "fetching $URL..."
+	$GETELEMFUNC 1>/dev/null 2>/dev/null -c -O $DOWNLOADPATH --referer=$REFERRER $URL #continue, if possible
+#	$GETELEMFUNC -c -O $DOWNLOADPATH --referer=$REFERRER $URL #continue, if possible
 }
 
 function processLink {
 	CURRNAME=`echo $URL | sed 's/\//_/g; s/ /_/g'`
 	REFNAME=`echo $REFERRER | sed 's/\//_/g; s/ /_/g'`
 
-	wget --spider 1>/dev/null 2>/dev/null $URL
-	if [ $? -ne 0 ]; then
-		echo 1>&2 "File $URL does not exist or is inaccessible"
+	if [ -f $QQEDIR"/"$CURRNAME ]; then
+		echo "$URL is already in download queue"
 	else
-		if [ -f $QQEDIR"/"$CURRNAME ]; then
-			echo "$URL is already in download queue"
-		else
-			echo "URL=$URL" > $QQEDIR"/"$CURRNAME
-			echo "REFERRER=$REFERRER" >> $QQEDIR"/"$CURRNAME
+		echo "URL=$URL" > $QQEDIR"/"$CURRNAME
+		echo "REFERRER=$REFERRER" >> $QQEDIR"/"$CURRNAME
 
-			DOWNLOADPATH=~/Downloads/fetched4you
-			echo "Queueing download of $URL to $DOWNLOADPATH"
-	
-			if [ ! -d $DOWNLOADPATH ]; then
-				mkdir $DOWNLOADPATH
-				echo "Created $DOWNLOADPATH"
-			fi
+		DOWNLOADPATH=~/Downloads/fetched4you
 
-			DOWNLOADPATH=$DOWNLOADPATH"/"$REFNAME
-			if [ ! -d $DOWNLOADPATH ]; then
-				mkdir $DOWNLOADPATH
-				echo "Created $DOWNLOADPATH"
-			fi
-
-			DOWNLOADPATH=$DOWNLOADPATH"/"$CURRNAME
-			if [ ! -d $DOWNLOADPATH ]; then
-				mkdir $DOWNLOADPATH
-				echo "Created $DOWNLOADPATH"
-			fi
-
-			echo "DOWNLOADPATH=$DOWNLOADPATH" >> $QQEDIR"/"$CURRNAME
+		if [ ! -d $DOWNLOADPATH ]; then
+			mkdir $DOWNLOADPATH
+			echo "Created $DOWNLOADPATH"
 		fi
-	fi
 
-	exit 0
+		DOWNLOADPATH=$DOWNLOADPATH"/"$REFNAME
+		if [ ! -d $DOWNLOADPATH ]; then
+			mkdir $DOWNLOADPATH
+			echo "Created $DOWNLOADPATH"
+		fi
+		
+		echo "DOWNLOADDIR=$DOWNLOADPATH" >> $QQEDIR"/"$CURRNAME
+
+		DOWNLOADPATH=$DOWNLOADPATH"/"$CURRNAME
+		echo "Queueing download of $URL to $DOWNLOADPATH"
+		echo "DOWNLOADPATH=$DOWNLOADPATH" >> $QQEDIR"/"$CURRNAME
+	fi
 }
 
 
 function processQueue {
-	LOCKFILE=QQEDIR/.fetch4me_lock
+	LOCKFILE=$QQEDIR/.fetch4me_lock
 
 	if [ -f $LOCKFILE ]; then
 		##check, if that process is still running
 		OLDPROC=`cat $LOCKFILE`
+		echo "pid $OLDPROC found in $QQEDIR"
 		PROC=(`ps -e | grep fetch4me | grep -v "grep" | awk '{print $1;}'`)
+
 		for ((i=0; i<${#PROC[@]}; i++)); do
 			if [ ${PROC[$i]} = OLDPROC ]; then
 				echo "Daemon is already running in $QQEDIR"
@@ -69,21 +72,32 @@ function processQueue {
 	fi
 
 	#daemonize, 'cause daemon is not running
+	echo "current PID: $$"
 	echo $$ > $LOCKFILE
-	trap "echo 'fuck off'" SIGHUP
+	trap "" SIGHUP
 
 	#process queue
-	until [ -z `ls $QQEDIR` ]; do
-		QUEUE=`ls $QQEDIR`
+	ls $QQEDIR > $QQEDIR"/.queue"
+	until [ -z "`ls $QQEDIR`" ]; do
+		QUEUE=(`ls $QQEDIR`)
 		CURRFILE=$QQEDIR"/"${QUEUE[0]}
+		echo $CURRFILE > $QQEDIR"/.status"
 		downloadFile
 		rm $CURRFILE
+		ls $QQEDIR > $QQEDIR"/.queue"
 	done
 
-	rm LOCKFILE
+	echo "done, all ok"
+	rm $LOCKFILE
 	exit 0
 }
 
+
+DOWNLOADPATH=~/Downloads
+if [ ! -d $DOWNLOADPATH ]; then
+	echo 1>&2 "no download dir"
+	exit 1
+fi
 
 GETELEMFUNC=`cat ~/.fetch4merc | grep GETELEMFUNC | awk '{ split ($0, arr, "="); print arr[2]; }'`
 QQEDIR=`cat ~/.fetch4merc | grep QQEDIR | awk '{ split ($0, arr, "="); print arr[2]; }'`
@@ -121,59 +135,46 @@ if [ -z $GETELEMFUNC ]; then
 fi
 
 if [ ! -d $QQEDIR ]; then
-	echo "working $QQEDIR dir does not exist"
+	echo 1>&2 "working $QQEDIR dir does not exist"
 	exit 1
 fi
 
 which $GETELEMFUNC 1>/dev/null 2>/dev/null
 if [ $? -ne 0 ]; then
-	echo "elemfunc $GETELEMFUNC does not exist"
+	echo 1>&2 "elemfunc $GETELEMFUNC does not exist"
 	exit 1
 fi
 
-wget --spider 1>/dev/null 2>/dev/null $REFERRER
-if [ $? -ne 0 ]; then
-	echo 1>&2 "$REFERRER is not valid referrer"
-	exit 1
+if [ ! -z $REFERRER ]; then
+	$GETELEMFUNC --spider 1>/dev/null 2>/dev/null $REFERRER
 fi
 
 ARGS=("$@")
+
+echo $QQEDIR
+echo $FIRSTARG
+echo "checking links..."
 for ((i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
 	if [ ${ARGS[${i}]} = "-r" ]; then
 		i=`expr $i + 1`
 		REFERRER=${ARGS[$i]}
-		wget --spider 1>/dev/null 2>/dev/null $REFERRER
-		if [ $? -ne 0 ]; then
-			echo 1>&2 "$REFERRER is not valid referrer"
-			exit 1
-		else
-			echo $REFERRER" is the new referrer"
-		fi
+		echo "checking referrer: $REFERRER"
+		$GETELEMFUNC --spider 1>/dev/null 2>/dev/null $REFERRER
 	else
-		URL=${ARGS[$i]}
-		echo $URL
-#		processLink
+		TMP=${ARGS[$i]}
+		echo "checking $TMP"
+		$GETELEMFUNC --spider 1>/dev/null 2>/dev/null $TMP
 	fi
 done 
 
-#processQueue
+echo "generating download requests..."
+for ((i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
+	if [ ${ARGS[${i}]} = "-r" ]; then
+		i=`expr $i + 1`
+	else
+		URL=${ARGS[$i]}
+		processLink
+	fi
+done 
 
-exit 0
-
-
-##
-## TODO: search for "fetch4me.lock" in QQEDIR, if there is one - 
-## look at PID and find out, is the daemon running or has it crashed
-## If process is running - add new files to QQEDIR and exit 0. If not - try to 
-## restart unfinished downloads, generate new lock file. Daemonize.
-## If there's new lock file - generate new queue, daemonize.
-##
-
-##
-## TODO: process all files from QQEDIR
-##
-
-##
-## TODO: 'df -h' to find out, if there's enough space on disk. If not - exit 1.
-##
-
+processQueue
