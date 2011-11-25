@@ -2,35 +2,54 @@
 
 function downloadFile {
 	echo $CURRFILE
-	wget $CURRFILE
+	DOWNLOADPATH=`cat $CURRFILE | grep DOWNLOADPATH | awk '{ split ($0, arr, "="); print arr[2]; }'`
+	URL=`cat $CURRFILE | grep URL | awk '{ split ($0, arr, "="); print arr[2]; }'`
+	REFERRER=`cat $CURRFILE | grep REFERRER | awk '{ split ($0, arr, "="); print arr[2]; }'`
+	
+	#TODO: check disk space
+
+	$GETELEMFUNC -c $CURRFILE -O $DOWNLOADPATH -r $REFERRER $URL #continue, if possible
 }
 
 function processLink {
-	DOWNLOADPATH=~/Downloads/fetched4you
-	echo $DOWNLOADPATH
-	if [ ! -d $DOWNLOADPATH ]; then
-		mkdir $DOWNLOADPATH
-		echo "Created $DOWNLOADPATH"
-	fi
-
-	DOWNLOADPATH=$DOWNLOADPATH"/"$REFERRER
-	if [ ! -d $DOWNLOADPATH ]; then
-		mkdir $DOWNLOADPATH
-		echo "Created $DOWNLOADPATH"
-	fi
-
-	DOWNLOADPATH=$DOWNLOADPATH"/"$URL
-	if [ ! -d $DOWNLOADPATH ]; then
-		mkdir $DOWNLOADPATH
-		echo "Created $DOWNLOADPATH"
-	fi
+	CURRNAME=`echo $URL | sed 's/\//_/g; s/ /_/g'`
+	REFNAME=`echo $REFERRER | sed 's/\//_/g; s/ /_/g'`
 
 	wget --spider 1>/dev/null 2>/dev/null $URL
 	if [ $? -ne 0 ]; then
 		echo 1>&2 "File $URL does not exist or is inaccessible"
+	else
+		if [ -f $QQEDIR"/"$CURRNAME ]; then
+			echo "$URL is already in download queue"
+		else
+			echo "URL=$URL" > $QQEDIR"/"$CURRNAME
+			echo "REFERRER=$REFERRER" >> $QQEDIR"/"$CURRNAME
+
+			DOWNLOADPATH=~/Downloads/fetched4you
+			echo "Queueing download of $URL to $DOWNLOADPATH"
+	
+			if [ ! -d $DOWNLOADPATH ]; then
+				mkdir $DOWNLOADPATH
+				echo "Created $DOWNLOADPATH"
+			fi
+
+			DOWNLOADPATH=$DOWNLOADPATH"/"$REFNAME
+			if [ ! -d $DOWNLOADPATH ]; then
+				mkdir $DOWNLOADPATH
+				echo "Created $DOWNLOADPATH"
+			fi
+
+			DOWNLOADPATH=$DOWNLOADPATH"/"$CURRNAME
+			if [ ! -d $DOWNLOADPATH ]; then
+				mkdir $DOWNLOADPATH
+				echo "Created $DOWNLOADPATH"
+			fi
+
+			echo "DOWNLOADPATH=$DOWNLOADPATH" >> $QQEDIR"/"$CURRNAME
+		fi
 	fi
 
-	########TODO: generate download request and put it in QQEDIR
+	exit 0
 }
 
 
@@ -47,22 +66,19 @@ function processQueue {
 				exit 0
 			fi
 		done
-
-		####TODO: continue downloads
-
-	else
-		#daemonize
-		echo $$ > $LOCKFILE
-		trap "echo 'fuck off'" SIGHUP
-
-		#process queue
-		until [ -z `ls $QQEDIR` ]; do
-			QUEUE=`ls $QQEDIR`
-			CURRFILE=$QQEDIR"/"${QUEUE[0]}
-			downloadFile
-			rm $CURRFILE
-		done
 	fi
+
+	#daemonize, 'cause daemon is not running
+	echo $$ > $LOCKFILE
+	trap "echo 'fuck off'" SIGHUP
+
+	#process queue
+	until [ -z `ls $QQEDIR` ]; do
+		QUEUE=`ls $QQEDIR`
+		CURRFILE=$QQEDIR"/"${QUEUE[0]}
+		downloadFile
+		rm $CURRFILE
+	done
 
 	rm LOCKFILE
 	exit 0
@@ -104,17 +120,20 @@ if [ -z $GETELEMFUNC ]; then
 	GETELEMFUNC="wget"
 fi
 
-echo $QQEDIR
-echo $GETELEMFUNC
-
 if [ ! -d $QQEDIR ]; then
-	echo 'working dir does not exist'
+	echo "working $QQEDIR dir does not exist"
 	exit 1
 fi
 
 which $GETELEMFUNC 1>/dev/null 2>/dev/null
 if [ $? -ne 0 ]; then
-	echo 'elemfunc does not exist'
+	echo "elemfunc $GETELEMFUNC does not exist"
+	exit 1
+fi
+
+wget --spider 1>/dev/null 2>/dev/null $REFERRER
+if [ $? -ne 0 ]; then
+	echo 1>&2 "$REFERRER is not valid referrer"
 	exit 1
 fi
 
@@ -123,7 +142,13 @@ for ((i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
 	if [ ${ARGS[${i}]} = "-r" ]; then
 		i=`expr $i + 1`
 		REFERRER=${ARGS[$i]}
-		echo $REFERRER" is the new referrer"
+		wget --spider 1>/dev/null 2>/dev/null $REFERRER
+		if [ $? -ne 0 ]; then
+			echo 1>&2 "$REFERRER is not valid referrer"
+			exit 1
+		else
+			echo $REFERRER" is the new referrer"
+		fi
 	else
 		URL=${ARGS[$i]}
 		echo $URL
@@ -133,9 +158,8 @@ done
 
 #processQueue
 
-##
-## TODO: check, if QQEDIR and GETELEMFUNC exist, and if REFERRER is correct URL. If not - exit 1.
-##
+exit 0
+
 
 ##
 ## TODO: search for "fetch4me.lock" in QQEDIR, if there is one - 
