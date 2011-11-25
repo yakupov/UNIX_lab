@@ -74,26 +74,35 @@ function processQueue {
 	#daemonize, 'cause daemon is not running
 	echo "current PID: $$"
 	echo $$ > $LOCKFILE
-	trap "" SIGHUP
 
-	#process queue
-	echo "`ls $QQEDIR | grep ".f4mereq"`" > $QQEDIR"/.queue"
-	until [ -z "`cat $QQEDIR"/.queue"`" ]; do
-		QUEUE=(`ls $QQEDIR | grep ".f4mereq"`)
-		CURRFILE=$QQEDIR"/"${QUEUE[0]}
-		echo "Processing request $CURRFILE" > $QQEDIR"/.status"
-		downloadFile
-		echo "`date` $REFERRER $URL" >> $QQEDIR"/.finished"
-		rm $CURRFILE
-		echo "`ls $QQEDIR | grep ".f4mereq"`" > $QQEDIR"/.queue"
-	done
+	exec >/dev/null
+	exec 2>/dev/null
+	exec < /dev/null
 
-	echo "finished" > $QQEDIR"/.status"
-	echo "done, all ok"
-	rm $LOCKFILE
-	exit 0
+	(
+		trap "" HUP
+		while true
+		do
+
+			#process queue
+			echo "`ls $QQEDIR | grep ".f4mereq"`" > $QQEDIR"/.queue"
+			until [ -z "`cat $QQEDIR"/.queue"`" ]; do
+				QUEUE=(`ls $QQEDIR | grep ".f4mereq"`)
+				CURRFILE=$QQEDIR"/"${QUEUE[0]}
+				echo "Processing request $CURRFILE" > $QQEDIR"/.status"
+				downloadFile
+				echo "`date` $REFERRER $URL" >> $QQEDIR"/.finished"
+				rm $CURRFILE
+				echo "`ls $QQEDIR | grep ".f4mereq"`" > $QQEDIR"/.queue"
+			done
+
+			echo "finished" > $QQEDIR"/.status"
+			echo "done, all ok"
+			rm $LOCKFILE
+			exit 0
+		done
+	) &
 }
-
 
 DOWNLOADPATH=~/Downloads
 if [ ! -d $DOWNLOADPATH ]; then
@@ -180,3 +189,5 @@ for ((i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
 done 
 
 processQueue
+
+exit 0
