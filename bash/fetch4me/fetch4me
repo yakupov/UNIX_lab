@@ -19,18 +19,18 @@ function downloadFile {
 
 	echo "fetching $URL..."
 	$GETELEMFUNC 1>/dev/null 2>/dev/null -c -O $DOWNLOADPATH --referer=$REFERRER $URL #continue, if possible
+	echo ok
 #	$GETELEMFUNC -c -O $DOWNLOADPATH --referer=$REFERRER $URL #continue, if possible
 }
 
 function processLink {
 	CURRNAME=`echo $URL | sed 's/\//_/g; s/ /_/g'`
 	REFNAME=`echo $REFERRER | sed 's/\//_/g; s/ /_/g'`
+	REQFILENAME=$QQEDIR"/"$CURRNAME".f4mereq"
 
-	if [ -f $QQEDIR"/"$CURRNAME ]; then
+	if [ -f $REQFILENAME ]; then
 		echo "$URL is already in download queue"
 	else
-		REQFILENAME=$QQEDIR"/"$CURRNAME".f4mereq"
-
 		DOWNLOADPATH=~/Downloads/fetched4you
 
 		if [ ! -d $DOWNLOADPATH ]; then
@@ -77,15 +77,15 @@ function processQueue {
 	trap "" SIGHUP
 
 	#process queue
-	ls $QQEDIR > $QQEDIR"/.queue"
-	until [ -z "`ls $QQEDIR | grep ".f4mereq"`" ]; do
+	echo "`ls $QQEDIR | grep ".f4mereq"`" > $QQEDIR"/.queue"
+	until [ -z "`cat $QQEDIR"/.queue"`" ]; do
 		QUEUE=(`ls $QQEDIR | grep ".f4mereq"`)
 		CURRFILE=$QQEDIR"/"${QUEUE[0]}
 		echo "Processing request $CURRFILE" > $QQEDIR"/.status"
 		downloadFile
 		echo "`date` $REFERRER $URL" >> $QQEDIR"/.finished"
 		rm $CURRFILE
-		ls $QQEDIR > $QQEDIR"/.queue"
+		echo "`ls $QQEDIR | grep ".f4mereq"`" > $QQEDIR"/.queue"
 	done
 
 	echo "finished" > $QQEDIR"/.status"
