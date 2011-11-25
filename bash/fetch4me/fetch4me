@@ -1,13 +1,8 @@
-#!/bin/sh
+#!/bin/bash -e
 
-function processQueue {
-	if [ -f $LOCKFILE ]; then
-		if [ `cat $LOCKFILE1` != $$ ]; then
-			; 
-		fi
-	fi
-	rm LOCKFILE
-	echo $$ > $LOCKFILE
+function downloadFile {
+	echo $CURRFILE
+	wget $CURRFILE
 }
 
 function processLink {
@@ -30,13 +25,49 @@ function processLink {
 		echo "Created $DOWNLOADPATH"
 	fi
 
-	wget blah blah ###########TODO############
+	wget --spider 1>/dev/null 2>/dev/null $URL
 	if [ $? -ne 0 ]; then
-		echo 1>&2 "fuck"
-		##process error
+		echo 1>&2 "File $URL does not exist or is inaccessible"
 	fi
-	
+
+	########TODO: generate download request and put it in QQEDIR
 }
+
+
+function processQueue {
+	LOCKFILE=QQEDIR/.fetch4me_lock
+
+	if [ -f $LOCKFILE ]; then
+		##check, if that process is still running
+		OLDPROC=`cat $LOCKFILE`
+		PROC=(`ps -e | grep fetch4me | grep -v "grep" | awk '{print $1;}'`)
+		for ((i=0; i<${#PROC[@]}; i++)); do
+			if [ ${PROC[$i]} = OLDPROC ]; then
+				echo "Daemon is already running in $QQEDIR"
+				exit 0
+			fi
+		done
+
+		####TODO: continue downloads
+
+	else
+		#daemonize
+		echo $$ > $LOCKFILE
+		trap "echo 'fuck off'" SIGHUP
+
+		#process queue
+		until [ -z `ls $QQEDIR` ]; do
+			QUEUE=`ls $QQEDIR`
+			CURRFILE=$QQEDIR"/"${QUEUE[0]}
+			downloadFile
+			rm $CURRFILE
+		done
+	fi
+
+	rm LOCKFILE
+	exit 0
+}
+
 
 GETELEMFUNC=`cat ~/.fetch4merc | grep GETELEMFUNC | awk '{ split ($0, arr, "="); print arr[2]; }'`
 QQEDIR=`cat ~/.fetch4merc | grep QQEDIR | awk '{ split ($0, arr, "="); print arr[2]; }'`
@@ -81,7 +112,8 @@ if [ ! -d $QQEDIR ]; then
 	exit 1
 fi
 
-if [ ! -z "`$GETELEMFUNC 2>&1 | grep "command not found"`" ]; then
+which $GETELEMFUNC 1>/dev/null 2>/dev/null
+if [ $? -ne 0 ]; then
 	echo 'elemfunc does not exist'
 	exit 1
 fi
@@ -98,8 +130,6 @@ for ((i=$FIRSTARG; i<${#ARGS[@]}; i++)); do
 #		processLink
 	fi
 done 
-
-LOCKFILE=QQEDIR/.fetch4me_lock
 
 #processQueue
 
@@ -122,17 +152,4 @@ LOCKFILE=QQEDIR/.fetch4me_lock
 ##
 ## TODO: 'df -h' to find out, if there's enough space on disk. If not - exit 1.
 ##
-
-##
-## Below is some shit for copy-pasting useful code)
-##
-
-aaa=`ps -e | grep fetch4me | grep -v "grep" | awk '{print $4;}'`
-echo $aaa
-if [ -z "$aaa" ]; then
-	echo "daemon is already running"
-else
-	trap "echo 'fuck off'" SIGHUP
-fi
-
 
