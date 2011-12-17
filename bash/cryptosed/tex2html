@@ -1,11 +1,9 @@
 #!/bin/bash
 
 COUNTER=0
-read ARGS[$COUNTER]
-while [ ! -z "${ARGS[$COUNTER]}" ]; do
+while read -r ARGS[$COUNTER]; do
 #	echo ${ARGS[$COUNTER]}
 	COUNTER=`expr $COUNTER + 1`
-	read ARGS[$COUNTER]
 done
 
 cat << EOF
@@ -23,11 +21,53 @@ EOF
 
 #process the body with sed
 
-#for ((i=0; i<${#ARGS[@]}; i++)); do
-#	if [ ${ARGS[${i}]} = "-r" ]; then
-#		echo ${ARGS[${i}]}
-#	fi
-#done 
+for ((i=1; i<$COUNTER; i++)); do
+	A=$(echo ${ARGS[${i}]} | grep '^\\subsection{' | grep '}$')
+	B=$(echo ${ARGS[${i}]} | grep '^\\section{' | grep '}$')
+	if [ "$A" ]; then
+#		echo 1
+		echo ${ARGS[${i}]} | sed '{s/\\subsection{/<h2>/g; s/}/<\/h2>/g}'
+	elif [ "$B" ]; then
+#		echo 2
+		echo ${ARGS[${i}]} | sed '{s/\\section{/<h1>/g; s/}/<\/h1>/g}'
+	elif [ "`echo ${ARGS[${i}]} | grep -F '%'`" ]; then
+		echo 1 > /dev/null
+#		echo hello
+	elif [ "${ARGS[${i}]}" ]; then
+#		echo 3
+		CNT=$i
+		LAST=$i
+		for ((; CNT<$COUNTER; CNT++)); do
+			a=$(echo ${ARGS[$CNT]} | grep '^\\subsection{' | grep '}$')
+			b=$(echo ${ARGS[$CNT]} | grep '^\\section{' | grep '}$')
+			if [ "$a$b" -o -z "${ARGS[$CNT]}" ]; then
+				CNT=$COUNTER
+			elif [ -z "`echo ${ARGS[$CNT]} | grep -F '%'`" ]; then
+#				echo hello
+				if [ "${ARGS[$CNT]}" ]; then
+					LAST=$CNT
+				fi
+			fi
+		done
+
+		if [ $i -eq $LAST ]; then
+			echo "<p>${ARGS[${i}]}</p>"
+		else
+			echo "<p>${ARGS[${i}]}"
+			for ((j=$i+1; j<$LAST; j++)); do
+				echo "${ARGS[${j}]}"
+			done
+			echo "${ARGS[$LAST]}</p>"
+		fi
+
+		i=$LAST
+
+#		echo "<p>${ARGS[${i}]}</p>"
+	fi
+
+#	echo ${ARGS[${i}]} | sed '{
+#	}'
+done 
 
 cat << EOF
 </body>
