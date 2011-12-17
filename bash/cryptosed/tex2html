@@ -1,0 +1,38 @@
+#!/bin/bash
+
+COUNTER=0
+read ARGS[$COUNTER]
+while [ ! -z "${ARGS[$COUNTER]}" ]; do
+#	echo ${ARGS[$COUNTER]}
+	COUNTER=`expr $COUNTER + 1`
+	read ARGS[$COUNTER]
+done
+
+cat << EOF
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+EOF
+
+echo "    <title>${ARGS[0]}</title>"
+
+cat << EOF
+</head>
+<body>
+EOF
+
+#process the body with sed
+
+#for ((i=0; i<${#ARGS[@]}; i++)); do
+#	if [ ${ARGS[${i}]} = "-r" ]; then
+#		echo ${ARGS[${i}]}
+#	fi
+#done 
+
+cat << EOF
+</body>
+</html>
+EOF
+
+#done
+
