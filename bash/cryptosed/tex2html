@@ -1,8 +1,36 @@
 #!/bin/bash
 
+function printParagraph {
+	TAG="p"
+	CNT=$(expr $CURRLINE + 1)
+	LAST=$CURRLINE
+	for ((; CNT<$COUNTER; CNT++)); do
+		a=$(echo ${ARGS[$CNT]} | grep '^\\subsection{' | grep '}$')
+		b=$(echo ${ARGS[$CNT]} | grep '^\\section{' | grep '}$')
+		if [ "$a$b" -o -z "${ARGS[$CNT]}" ]; then
+			CNT=$COUNTER
+		elif [ -z "`echo ${ARGS[$CNT]} | grep -F '%'`" ]; then
+			LAST=$CNT
+		fi
+	done
+
+	if [ $i -eq $LAST ]; then
+		echo "<$TAG>$FIRSTLINE</$TAG>"
+	else
+		echo "<$TAG>$FIRSTLINE"
+		for ((j=$CURRLINE+1; j<$LAST; j++)); do
+			echo "${ARGS[${j}]}"
+		done
+		echo "${ARGS[$LAST]}</$TAG>"
+	fi
+
+	CURRLINE=$LAST
+}
+
 COUNTER=0
 while read -r ARGS[$COUNTER]; do
 #	echo ${ARGS[$COUNTER]}
+	ARGS[$COUNTER]=$(echo ${ARGS[$COUNTER]} | sed 's/^ *//;s/ *$//;s/ \{1,\}/ /g')
 	COUNTER=`expr $COUNTER + 1`
 done
 
@@ -24,46 +52,30 @@ EOF
 for ((i=1; i<$COUNTER; i++)); do
 	A=$(echo ${ARGS[${i}]} | grep '^\\subsection{' | grep '}$')
 	B=$(echo ${ARGS[${i}]} | grep '^\\section{' | grep '}$')
+	CURRLINE=$i
+
 	if [ "$A" ]; then
 #		echo 1
+#		TAG="h2"
+#		FIRSTLINE=$(echo ${ARGS[${i}]} | sed '{s/\\subsection{//g; s/}//g}')
+#		printLines
 		echo ${ARGS[${i}]} | sed '{s/\\subsection{/<h2>/g; s/}/<\/h2>/g}'
 	elif [ "$B" ]; then
 #		echo 2
+#		TAG="h1"
+#		FIRSTLINE=$(echo ${ARGS[${i}]} | sed '{s/\\section{//g; s/}//g}')
+#		printLines
 		echo ${ARGS[${i}]} | sed '{s/\\section{/<h1>/g; s/}/<\/h1>/g}'
 	elif [ "`echo ${ARGS[${i}]} | grep -F '%'`" ]; then
 		echo 1 > /dev/null
-#		echo hello
 	elif [ "${ARGS[${i}]}" ]; then
 #		echo 3
-		CNT=$i
-		LAST=$i
-		for ((; CNT<$COUNTER; CNT++)); do
-			a=$(echo ${ARGS[$CNT]} | grep '^\\subsection{' | grep '}$')
-			b=$(echo ${ARGS[$CNT]} | grep '^\\section{' | grep '}$')
-			if [ "$a$b" -o -z "${ARGS[$CNT]}" ]; then
-				CNT=$COUNTER
-			elif [ -z "`echo ${ARGS[$CNT]} | grep -F '%'`" ]; then
-#				echo hello
-				if [ "${ARGS[$CNT]}" ]; then
-					LAST=$CNT
-				fi
-			fi
-		done
-
-		if [ $i -eq $LAST ]; then
-			echo "<p>${ARGS[${i}]}</p>"
-		else
-			echo "<p>${ARGS[${i}]}"
-			for ((j=$i+1; j<$LAST; j++)); do
-				echo "${ARGS[${j}]}"
-			done
-			echo "${ARGS[$LAST]}</p>"
-		fi
-
-		i=$LAST
-
-#		echo "<p>${ARGS[${i}]}</p>"
+#		TAG="p"
+		FIRSTLINE=${ARGS[${i}]}
+		printParagraph
 	fi
+
+	i=$CURRLINE
 
 #	echo ${ARGS[${i}]} | sed '{
 #	}'
