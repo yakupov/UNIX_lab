@@ -1,0 +1,152 @@
+#!/bin/sh
+
+FNAME=$2
+ARG=$3
+STEP=`cat ./step.conf`
+
+init() {
+  if [ -f ./$FNAME ]; then
+	if [ -d ./"."$FNAME/ ]; then
+	    echo "File named $FNAME is already initialized, exiting"
+	    if [ ! -f ./"."$FNAME/$FNAME ]; then
+		echo "But there's a problem with it. Delete directory .$FNAME and initialize this file again"
+	    fi
+	else
+	    mkdir ./"."$FNAME
+	    mkdir ./"."$FNAME/data
+	    mkdir ./"."$FNAME/diffs
+
+	    echo "Initializing file $FNAME"
+
+	    echo "" > ./"."$FNAME/data/$FNAME"_0"
+	    echo $STEP > ./"."$FNAME/data/$FNAME"_0.step"
+	    echo 0 > ./"."$FNAME/$FNAME"_COUNT"
+	    echo 0 > ./"."$FNAME/$FNAME"_LAST_DATA"
+
+	    commit
+	fi
+  else
+	echo "No file named $FNAME in working dir"
+  fi
+}
+
+commit() {
+  if [ -f ./"."$FNAME/data/$FNAME"_0" ]; then
+	getLastRevision
+
+	diff ./"."$FNAME/$FNAME"_t" ./$FNAME > ./$FNAME".diff"
+
+	if [ $? -eq 0 ]; then
+		COUNT=`expr $COUNT + 1`
+		echo $COUNT > ./"."$FNAME/$FNAME"_COUNT"
+
+		if [ ! $STEP -eq $CSTEP ]; then
+			cp ./$FNAME ./"."$FNAME/data/$FNAME"_"$COUNT			
+			echo $STEP > ./"."$FNAME/data/$FNAME"_"$COUNT".step"
+			echo $COUNT > ./"."$FNAME/$FNAME"_LAST_DATA"
+		else
+			let "TMP = LAST_DATA + STEP"
+
+			if [ $TMP -eq $COUNT ]; then
+				cp ./$FNAME ./"."$FNAME/data/$FNAME"_"$COUNT
+				echo $STEP > ./"."$FNAME/data/$FNAME"_"$COUNT".step"
+				echo $COUNT > ./"."$FNAME/$FNAME"_LAST_DATA"
+			else
+				cp ./$FNAME".diff" ./"."$FNAME/diffs/$FNAME"_"$COUNT
+			fi
+
+		fi
+	else
+		echo "nothing to commit: no changes"
+	fi
+
+	rm ./"."$FNAME/$FNAME"_t"
+	rm ./$FNAME".diff"
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+update() {
+  export COUNT=`cat ./"."$FNAME/$FNAME"_COUNT"`	
+
+  if [ $COUNT -ge $ARG ]; then
+	BASE=0
+	for ((i=$ARG; i>=0; i--)); do
+		if [ -f ./"."$FNAME/data/$FNAME"_"$i ]; then
+			BASE=$i
+			i=-1
+		fi
+	done
+
+	cp ./"."$FNAME/data/$FNAME"_"$BASE ./$FNAME
+
+	for ((i=$BASE+1; i<=$ARG; i++)); do
+		patch ./$FNAME ./"."$FNAME/diffs/$FNAME"_"$i
+	done
+
+  else
+	echo "No version $ARG of file named $FNAME"
+  fi
+}
+
+status() {
+  if [ -f ./"."$FNAME/data/$FNAME"_0" ]; then
+	getLastRevision
+	if [ -z "`diff -u ./"."$FNAME/$FNAME"_t" ./$FNAME`" ]; then
+		echo "no changes"
+	else
+		echo "changed"
+	fi
+	rm ./"."$FNAME/$FNAME"_t"
+  else
+	echo "It's a completely new file"
+  fi
+}
+
+_diff() {
+  if [ -f ./"."$FNAME/data/$FNAME"_0" ]; then
+	getLastRevision
+	diff -u ./"."$FNAME/$FNAME"_t" ./$FNAME
+	rm ./"."$FNAME/$FNAME"_t"
+  else
+	echo "No file named $FNAME was initialized"
+  fi
+}
+
+#in - $FNAME, $STEP
+#out - $COUNT, $LAST_DATA, $CSTEP, new file
+getLastRevision() {
+	export COUNT=`cat ./"."$FNAME/$FNAME"_COUNT"`
+	export LAST_DATA=`cat ./"."$FNAME/$FNAME"_LAST_DATA"`
+	export CSTEP=`cat ./"."$FNAME/data/$FNAME"_"$LAST_DATA".step"`
+
+	cp ./"."$FNAME/data/$FNAME"_"$LAST_DATA ./"."$FNAME/$FNAME"_t"
+
+	for ((i=$LAST_DATA+1; i<=$COUNT; i++)); do
+		patch ./"."$FNAME/$FNAME"_t" ./"."$FNAME/diffs/$FNAME"_"$i
+	done
+}
+
+
+
+case "$1" in
+'diff')
+  _diff
+  ;;
+'commit')
+  commit
+  ;;
+'init')
+  init
+  ;;
+'update')
+  update
+  ;;
+'status')
+  status
+  ;;
+*)
+  echo "No action"
+esac
+
