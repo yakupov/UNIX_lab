@@ -1,8 +1,9 @@
-#define BUFSIZE 10
-#define size_t int
+#include <unistd.h>
 
-void reverseAndPrint (char* buffer, size_t sz) {
-	for (size_t i = sz - 2; i >= 0; --i) {
+#define BUFSIZE 10
+
+void reverseAndPrint (char* buffer, int sz) {
+	for (int i = sz - 2; i >= 0; --i) {
 		write (1, buffer + i, 1);
 	}
 
@@ -10,7 +11,7 @@ void reverseAndPrint (char* buffer, size_t sz) {
 }
 
 int main() {
-	size_t readLastTime = 123;
+	int readLastTime = 123;
 	char buffer[BUFSIZE];
 	char tailRemaining = 0;
 
@@ -27,8 +28,6 @@ int main() {
 		} else {
 			tailRemaining = 1;
 		}
-
-		buffer[BUFSIZE - 1] = 'x';
 	}
 
 	return 0;
