@@ -35,6 +35,7 @@ int main() {
 				if (!badString) {
 					reverseAndPrint (buffer + stringBeginning, i - stringBeginning + 1);
 				}
+				badString = 0;
 				stringBeginning = i + 1;
 			}
 		}
