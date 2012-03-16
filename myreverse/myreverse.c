@@ -1,15 +1,24 @@
 #include <unistd.h>
 #include <string.h>
-#include <stdio.h>
 
-#define BUFSIZE 10
+const int BUFSIZE = 10;
+const char endl = '\n';
 
 void reverseAndPrint (char* buffer, int sz) {
-	for (int i = sz - 2; i >= 0; --i) {
-		write (1, buffer + i, 1);
+	int wrote = 0;
+
+	for (int i = sz - 1; i >= 0; --i) {
+		if (*(buffer + i) != 0) {
+			++wrote;
+			if (*(buffer + i) != '\n') {			
+				write (1, buffer + i, 1);
+			}
+		}
 	}
 
-	write (1, buffer + sz - 1, 1);
+	if (wrote > 0) {
+		write (1, &endl, 1);
+	}
 }
 
 int main() {
@@ -18,33 +27,31 @@ int main() {
 	int badString = 0;
 
 	while (1) {
-		int oldOffset = offset;
-		int readLastTime = read (0, buffer + oldOffset, BUFSIZE - oldOffset);
+		int readLastTime = read (0, buffer + offset, BUFSIZE - offset);
 		int stringBeginning = 0;
 
-		for (int i = oldOffset; i < oldOffset + readLastTime; ++i) {
+		for (int i = offset; i < offset + readLastTime; ++i) {
 			if (buffer[i] == '\n') {
 				if (!badString) {
 					reverseAndPrint (buffer + stringBeginning, i - stringBeginning + 1);
 				}
-				
-				badString = 0;
 				stringBeginning = i + 1;
-				offset = 0;
 			}
 		}
 
-		if (readLastTime < BUFSIZE - oldOffset) {
+		if (readLastTime < BUFSIZE - offset) {
 			if (!badString) {
-				reverseAndPrint (buffer + stringBeginning, oldOffset + readLastTime - stringBeginning);
+				reverseAndPrint (buffer + stringBeginning, offset + readLastTime - stringBeginning);
 			}
-			return 0;
+			stringBeginning = BUFSIZE;
 		}
 
-		if (offset > 0 || stringBeginning == 0) {
-			offset = 0;
+
+		if (stringBeginning == 0) { //no string was found
 			badString = 1;
+			offset = 0;
 		} else {
+			badString = 0;
 			offset = BUFSIZE - stringBeginning;
 			memmove (buffer, buffer + stringBeginning, offset);
 		}
