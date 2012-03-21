@@ -39,21 +39,26 @@ int main() {
 				stringBeginning = i + 1;
 			}
 		}
-
+/*
 		if (readLastTime < BUFSIZE - offset) {
 			if (!badString) {
 				reverseAndPrint (buffer + stringBeginning, offset + readLastTime - stringBeginning);
 			}
 			stringBeginning = BUFSIZE;
 		}
-
+*/
 
 		if (stringBeginning == 0) { //no string was found
-			badString = 1;
-			offset = 0;
+			if (readLastTime == BUFSIZE - offset) {
+				badString = 1;
+				offset = 0;
+			} else {
+				offset += readLastTime;
+			}
 		} else {
-			badString = 0;
-			offset = BUFSIZE - stringBeginning;
+			//badString = 0;
+			//offset = BUFSIZE - stringBeginning;
+			offset = offset + readLastTime - stringBeginning;
 			memmove (buffer, buffer + stringBeginning, offset);
 		}
 	}
