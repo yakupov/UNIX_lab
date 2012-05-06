@@ -1,8 +1,19 @@
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
 
-const int BUFSIZE = 9;
+#define BUFSIZE 9
 const char endl = '\n';
+
+
+typedef struct node node;
+struct node {
+	node *parent;
+	char data[BUFSIZE];
+	int weight;
+	int len;
+};
+
 
 void reverseAndPrint (char* buffer, int sz) {
 	int wrote = 0;
@@ -17,52 +28,102 @@ void reverseAndPrint (char* buffer, int sz) {
 	}
 
 	if (wrote > 0) {
-		write (1, &endl, 1);
+		//write (1, &endl, 1);
 	}
 }
 
+node *newNode (char* data, int weight, int len, node *par) {
+    if (weight < 0) weight = 0;
+    if (len < 0) len = 0;
+
+    node *res = (node*) malloc(sizeof(node));
+    res->parent = par;
+    res->weight = weight;
+    res->len = len;
+    memcpy (&(res->data), data, len * sizeof (char));
+
+    return res;
+}
+
+
+
+void kill (node *nod) {
+	if (!nod) return;
+
+	node * tnod = nod;
+	while (tnod != 0) {
+		node * oldnod = tnod;
+		tnod = tnod->parent;
+		free (oldnod);
+	}		
+}
+
+
+void killAndPrint (node *nod) {
+	if (!nod) return;
+
+	node * tnod = nod;
+	while (tnod != 0) {
+		node * oldnod = tnod;
+		tnod = tnod->parent;
+		reverseAndPrint (oldnod->data, oldnod->len);
+		free (oldnod);
+	}		
+}
+
+
 int main() {
 	char buffer[BUFSIZE];
-	int offset = 0;
 	int badString = 0;
 
-	while (1) {
-		int readLastTime = read (0, buffer + offset, BUFSIZE - offset);
-		int stringBeginning = 0;
+	node *tail = 0;//(node *) malloc (sizeof (node));
 
+	while (1) {
+		int readLastTime = read (0, buffer, BUFSIZE);
 		if (readLastTime <= 0) break;
 
-		for (int i = offset; i < offset + readLastTime; ++i) {
-			if (buffer[i] == '\n') {
-				if (!badString) {
-					reverseAndPrint (buffer + stringBeginning, i - stringBeginning + 1);
-				}
-				badString = 0;
-				stringBeginning = i + 1;
-			}
-		}
-/*
-		if (readLastTime < BUFSIZE - offset) {
-			if (!badString) {
-				reverseAndPrint (buffer + stringBeginning, offset + readLastTime - stringBeginning);
-			}
-			stringBeginning = BUFSIZE;
-		}
-*/
+//		tail = newNode (buffer, readLastTime, readLastTime, tail);
 
-		if (stringBeginning == 0) { //no string was found
-			if (readLastTime == BUFSIZE - offset) {
-				badString = 1;
-				offset = 0;
-			} else {
-				offset += readLastTime;
+		int beforeEndl;
+		int firstEndl = -1;
+
+		for (beforeEndl = 0; beforeEndl < readLastTime; ++beforeEndl) {
+			if (buffer[beforeEndl] == '\n') {
+				firstEndl = beforeEndl;
+				break;
 			}
-		} else {
-			//badString = 0;
-			//offset = BUFSIZE - stringBeginning;
-			offset = offset + readLastTime - stringBeginning;
-			memmove (buffer, buffer + stringBeginning, offset);
 		}
+
+		node * currNode = tail;
+		while (currNode != 0) {
+			beforeEndl += currNode->len;
+			currNode = currNode->parent;
+		}
+
+		if (firstEndl < 0) { 
+			tail = newNode (buffer, readLastTime, readLastTime, tail);
+			continue;
+		}
+
+		if (beforeEndl > BUFSIZE) {
+			kill (tail);
+			tail = 0;
+		} else {
+			reverseAndPrint (buffer, firstEndl + 1);
+			killAndPrint (tail);
+			tail = 0;
+			write (1, &endl, 1);
+		}
+		
+		for (int i = firstEndl + 1; i < readLastTime; ++i) {
+			if (buffer[i] == '\n') {
+				reverseAndPrint (buffer + firstEndl + 1, i - firstEndl);
+				write (1, &endl, 1);
+				firstEndl = i;
+			}
+		}
+
+		tail = newNode (buffer + (firstEndl + 1), readLastTime - (firstEndl + 1), readLastTime - (firstEndl + 1), tail);
 	}
 
 	return 0;
