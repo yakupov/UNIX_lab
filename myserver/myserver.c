@@ -83,11 +83,11 @@ int main(int argc, char **argv) {
 				++count;
 				
 				char addr_str[100];
-				sprintf(addr_str, "Connection from %d", clients[count - 1].addr.sin_addr);
+				sprintf(addr_str, "Connection from %d\n", clients[count - 1].addr.sin_addr);
 
 				for (int ii = 0; ii < count - 1; ++ii) {
 					send(clients[ii].sock, addr_str, strlen(addr_str), 0);
-					send(clients[ii].sock, &endl, 1, 0);
+					//send(clients[ii].sock, &endl, 1, 0);
 				}
 			}
 		}
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
 								if (j == i)
 									continue;
 								send(clients[j].sock, clients[i].queue, clients[i].queue_item_size, 0);
-								send(clients[j].sock, &endl, 1, 0);
+								//send(clients[j].sock, &endl, 1, 0);
 							}							
 						}
 
