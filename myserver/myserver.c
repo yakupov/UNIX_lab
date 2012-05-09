@@ -14,6 +14,7 @@ struct client {
 	char buffer[BUFSIZE];
 	char queue[BUFSIZE]; //item queue w. length == 1
 
+	struct sockaddr_in addr;
 	int sock;
 	int queue_item_size;
 	int offset;
@@ -69,14 +70,25 @@ int main(int argc, char **argv) {
 
 	while(1) {
 		for (int i = 0; i < argc; ++i) {
-			int sock = accept(ports[i], NULL, NULL);
+			struct sockaddr_in addr;
+			int sz;
+			int sock = accept(ports[i], (struct sockaddr *)&addr, &sz);
 			if(sock >= 0) {
 				//add new socket
+				memcpy (&(clients[count].addr), &addr, sizeof (struct sockaddr_in));
 				clients[count].queue_item_size = 0;
 				clients[count].offset = 0;
 				clients[count].badString = 0;
 				clients[count].sock = sock;
 				++count;
+				
+				char addr_str[100];
+				sprintf(addr_str, "Connection from %d", clients[count - 1].addr.sin_addr);
+
+				for (int ii = 0; ii < count - 1; ++ii) {
+					send(clients[ii].sock, addr_str, strlen(addr_str), 0);
+					send(clients[ii].sock, &endl, 1, 0);
+				}
 			}
 		}
 
@@ -85,6 +97,8 @@ int main(int argc, char **argv) {
 			int readLastTime = recv(clients[i].sock, clients[i].buffer + clients[i].offset, BUFSIZE - clients[i].offset, 0);
 			if(readLastTime < 0) {
 				//delete socket
+				memmove (clients + i * sizeof (struct client), clients + (i + 1) * sizeof (struct client), sizeof (struct client) * (count - i));
+				--count;
 			}
 
 
@@ -97,6 +111,7 @@ int main(int argc, char **argv) {
 								if (j == i)
 									continue;
 								send(clients[j].sock, clients[i].queue, clients[i].queue_item_size, 0);
+								send(clients[j].sock, &endl, 1, 0);
 							}							
 						}
 
